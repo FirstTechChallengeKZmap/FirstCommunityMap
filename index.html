@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FTC Kazakhstan Map</title>
+    <meta name="description" content="Қазақстандағы FIRST Tech Challenge командаларының ресми емес интерактивті картасы. Барлық командалар мен олардың орналасқан жері.">
+
+    <meta name="keywords" content="FTC Kazakhstan, FIRST Tech Challenge Kazakhstan, Robotics Kazakhstan, FTC Map, Қазақстан Робототехника">
+    <meta name="google-site-verification" content="RAyutwIkwxyIqJdw_XV-aKofnz0sCqkNy9ruIQd_gaI" />
+    <meta property="og:title" content="FTC Kazakhstan Community Map">
+    <meta property="og:description" content="If you need a team lab or connection, find them on the map and contact them.">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --ftc-red: #941426;
+            --ftc-gold: #CAB490;
+            --ftc-blue: #0088cc;
+            --bg: #ffffff;
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --text: #1a1a1a;
+        }
+
+        [data-theme="dark"] {
+            --bg: #121212;
+            --card-bg: rgba(28, 28, 28, 0.95);
+            --text: #ffffff;
+        }
+
+        body {
+            margin: 0; font-family: 'Outfit', sans-serif;
+            height: 100vh; display: flex; flex-direction: column;
+            background: var(--bg); color: var(--text); transition: 0.3s;
+        }
+
+        header {
+            background: var(--ftc-red); color: white;
+            padding: 10px 30px; display: flex; align-items: center; justify-content: space-between;
+            border-bottom: 4px solid var(--ftc-gold); z-index: 1000;
+        }
+
+        .header-right { display: flex; gap: 15px; align-items: center; }
+
+        .theme-toggle {
+            background: rgba(255,255,255,0.2); border: none; color: white;
+            width: 40px; height: 40px; border-radius: 50%; cursor: pointer; font-size: 20px;
+        }
+
+        .add-btn {
+            background: var(--ftc-gold); color: var(--ftc-red);
+            padding: 8px 20px; border-radius: 20px; text-decoration: none;
+            font-weight: 700; font-size: 14px;
+        }
+
+        #map { flex-grow: 1; z-index: 1; }
+
+        .search-container {
+            position: absolute; top: 90px; left: 20px; z-index: 1000;
+            background: var(--card-bg); padding: 12px; border-radius: 15px; width: 280px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2); border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .locate-btn {
+            position: absolute; bottom: 130px; right: 10px; z-index: 1000;
+            background: var(--card-bg); border: 2px solid rgba(0,0,0,0.1);
+            border-radius: 8px; width: 40px; height: 40px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; font-size: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2); color: var(--text);
+        }
+
+        .stats-box {
+            position: absolute; bottom: 30px; left: 20px; z-index: 1000;
+            background: var(--card-bg); padding: 10px 20px; border-radius: 12px;
+            font-weight: 700; border-left: 5px solid var(--ftc-gold);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2); font-size: 14px;
+        }
+
+        input, select { width: 100%; border: none; background: transparent; color: inherit; outline: none; font-family: 'Outfit'; }
+
+        .custom-marker-wrapper { transition: 0.2s; }
+        .custom-marker-wrapper:hover { transform: scale(1.1); z-index: 1001 !important; }
+
+        .popup-card { text-align: center; min-width: 190px; }
+        .popup-logo { width: 75px; height: 75px; border-radius: 50%; object-fit: cover; border: 2px solid var(--ftc-red); margin-bottom: 8px; }
+        
+        .social-btn {
+            display: block; padding: 10px; border-radius: 10px; text-decoration: none;
+            color: white !important; font-weight: bold; font-size: 11px; margin-top: 5px;
+            text-align: center; transition: 0.3s;
+        }
+
+        @media (max-width: 600px) {
+            .leaflet-popup-content {
+                width: 180px !important; /* Попап енін шектеу */
+            }
+            .popup-logo {
+                width: 60px !important; 
+                height: 60px !important;
+            }
+            .social-btn {
+                font-size: 11px !important;
+                padding: 8px !important;
+            }
+        }
+
+        /* Картаны жылжытқанда кедергі жасамау үшін */
+        .leaflet-popup-content-wrapper {
+            overflow: hidden;
+            pointer-events: auto;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div style="display:flex; align-items:center; gap:15px;">
+        <img src="logo.png" style="height:35px; width:auto; object-fit:contain;" onerror="this.src='https://raw.githubusercontent.com/FIRST-Tech-Challenge/ftc_app/master/doc/images/FTC_Logo.png'">
+        <div>
+            <h2 style="margin:0; font-size:18px;">FTC KAZAKHSTAN</h2>
+            <p style="margin:0; font-size:12px; color:var(--ftc-gold);"> FIRST COMMUNITY MAP</p>
+        </div>
+    </div>
+    <div class="header-right">
+        <button class="theme-toggle" id="theme-btn">🌓</button>
+        <a href="https://docs.google.com/forms/d/e/1FAIpQLSeR7unJ5CiwiP53cd5lFuyj5HwCWnFBJnKOwNYtg73piU-8XA/viewform" target="_blank" class="add-btn">Add Team</a>
+    </div>
+</header>
+
+<div class="search-container">
+    <input type="text" id="search-input" placeholder="Find team name or num..." oninput="searchTeam()">
+</div>
+
+<div class="search-container city-filter-box" style="top: 150px;"> 
+    <select id="city-filter" onchange="jumpToCity()">
+        <option value="">🏙️ Select City...</option>
+        <option value="43.2389,76.8897">Almaty</option>
+        <option value="51.1605,71.4704">Astana</option>
+        <option value="42.3417,69.5901">Shymkent</option>
+        <option value="49.8019,73.1031">Karaganda</option>
+        <option value="50.2839,57.1670">Aktobe</option>
+        <option value="44.8488,65.5033">Kyzylorda</option>
+    </select>
+</div>
+
+<div class="locate-btn" onclick="findMe()" title="Find my location">🎯</div>
+
+<div class="stats-box">
+    Total Teams: <span id="team-count" style="color:var(--ftc-red);">0</span>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    const map = L.map('map', {
+    tap: false, // Айфондағы қате басуды (zoom/zoom) жояды
+    zoomControl: false,
+    touchZoom: true,
+    dragging: true
+    }).setView([48.0196, 66.9237], 5);
+    
+    const lightTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png');
+    const darkTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png');
+
+    const themeBtn = document.getElementById('theme-btn');
+    let currentTheme = localStorage.getItem('theme') || 'light';
+
+    function applyTheme(theme) {
+        if (theme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            map.removeLayer(lightTiles); darkTiles.addTo(map);
+        } else {
+            document.documentElement.setAttribute('data-theme', 'light');
+            map.removeLayer(darkTiles); lightTiles.addTo(map);
+        }
+    }
+
+    function jumpToCity() {
+        const coords = document.getElementById('city-filter').value;
+        if (coords) {
+            const [lat, lng] = coords.split(',').map(Number);
+            map.flyTo([lat, lng], 12, { duration: 1.5 });
+        }
+    }
+
+    themeBtn.addEventListener('click', () => {
+        currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+        localStorage.setItem('theme', currentTheme);
+        applyTheme(currentTheme);
+    });
+
+    applyTheme(currentTheme);
+
+    function findMe() { map.locate({setView: true, maxZoom: 15}); }
+
+    map.on('locationfound', function(e) {
+        L.circleMarker(e.latlng, { radius: 8, fillColor: "#007bff", color: "#fff", weight: 2, fillOpacity: 1 }).addTo(map).bindPopup("You are here").openPopup();
+    });
+
+    const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRnEQHb2IxZ5KKB2x0rxyD43egr_TQquKNDk8fSqLt9zgttxP8tBM_ddP1_i-HqfFL54oBA3f1O6mV6/pub?gid=1091235679&single=true&output=csv';
+    const markers = {};
+
+    // ФУНКЦИЯНЫ ТҮЗЕДІК: БҰЛ ФОРМАТ САФАРИДЕ ДЕ, ХРОМДА ДА ЖҰМЫС ІСТЕЙДІ
+    function getDriveImg(url) {
+        if (!url || !url.includes('drive.google.com')) return 'https://i.imgur.com/8K9Srn7.png';
+        let id = "";
+        try {
+            if (url.includes('id=')) {
+                id = url.split('id=')[1].split('&')[0];
+            } else {
+                id = url.split('/d/')[1].split('/')[0];
+            }
+            // Google Drive суреттерін көрсетудің ең сенімді форматы:
+            return `https://lh3.googleusercontent.com/d/${id}`;
+        } catch (e) {
+            return 'https://i.imgur.com/8K9Srn7.png';
+        }
+    }
+
+    // ТІЛДЕРДІ НОРМАЛИЗАЦИЯЛАУ (ІЗДЕУ ҮШІН)
+    function normalizeText(text) {
+        if (!text) return "";
+        return text.toLowerCase()
+            .replace(/[әа]/g, 'а').replace(/[іий]/g, 'и').replace(/[өо]/g, 'о')
+            .replace(/[ұүу]/g, 'у').replace(/[қк]/g, 'к').replace(/[ғг]/g, 'г')
+            .replace(/[ңн]/g, 'н').replace(/[һх]/g, 'х');
+    }
+
+    async function loadData() {
+        try {
+            const res = await fetch(sheetUrl);
+            const csv = await res.text();
+            const rows = csv.split('\n').slice(1);
+            let teamCounter = 0;
+
+            rows.forEach(row => {
+                const cols = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                if (cols.length < 8) return;
+
+                const name = cols[1]?.replace(/"/g, '').trim();
+                const num  = cols[2]?.replace(/[#"]/g, '').trim();
+                const loc  = cols[3]?.replace(/"/g, '').trim();
+                const pos  = cols[4]?.replace(/"/g, '').trim();
+                const tg   = cols[5]?.replace(/[#@"]/g, '').trim();
+                const insta = cols[6]?.replace(/[#@"]/g, '').trim();
+                const logo = getDriveImg(cols[7]);
+
+                if (pos && pos.includes(',')) {
+                    const [lat, lng] = pos.split(',').map(Number);
+                    if (!isNaN(lat) && !isNaN(lng)) {
+                        
+                        // КАРТАДАҒЫ ЛОГОТИПТЕР (DIVICON АРҚЫЛЫ)
+                        const customIcon = L.divIcon({
+                            className: 'custom-marker-wrapper',
+                            html: `<div style="background:white; border:2px solid var(--ftc-red); border-radius:50%; width:40px; height:40px; overflow:hidden; box-shadow: 0 0 5px rgba(0,0,0,0.3); display:flex; align-items:center; justify-content:center;">
+                                     <img src="${logo}" referrerpolicy="no-referrer" style="width:100%; height:100%; object-fit:cover;" onerror="this.src='https://i.imgur.com/8K9Srn7.png'">
+                                   </div>`,
+                            iconSize: [40, 40],
+                            iconAnchor: [20, 20]
+                        });
+
+                        const m = L.marker([lat, lng], { icon: customIcon }).addTo(map);
+                        const route2gis = `https://2gis.kz/dirSearch/to/${lng},${lat}`;
+
+                        m.bindPopup(`
+                        <div class="popup-card">
+                            <img src="${logo}" referrerpolicy="no-referrer" class="popup-logo" onerror="this.src='https://i.imgur.com/8K9Srn7.png'">
+                            <h3 style="margin:0; color:var(--ftc-red); font-size:16px;">${name}</h3>
+                            <div style="font-weight:bold; color:var(--ftc-gold);">#${num}</div>
+                            <p style="font-size:11px; margin:8px 0; border-top:1px solid #eee; padding-top:8px;">📍 ${loc}</p>
+                            
+                            <div style="display:flex; flex-direction:column; gap:4px;">
+                                <a href="https://ftcscout.org/teams/${num}" target="_blank" class="social-btn" style="background:#ff6d00">
+                                    📊 FTC Scout Stats
+                                </a>
+
+                                <a href="${route2gis}" target="_blank" class="social-btn" style="background:#24c65a">🗺️ 2GIS Маршрут</a>
+                                <a href="https://t.me/${tg}" target="_blank" class="social-btn" style="background:#0088cc"> Telegram</a>
+                                <a href="https://instagram.com/${insta}" target="_blank" class="social-btn" style="background:var(--ftc-red)"> Instagram</a>
+                            </div>
+                        </div> `,{
+                         maxWidth: 220,     
+                         minWidth: 160,      
+                         autoPan: true,      // Ашылғанда картаны жылжыту
+                         keepInView: true,   // Экраннан шығып кетпеуін қадағалау
+                         autoPanPadding: L.point(10, 10)
+                        });
+                        markers[num] = { m, name: name };
+                        teamCounter++;
+                    }
+                }
+            });
+            document.getElementById('team-count').innerText = teamCounter;
+        } catch (e) { console.error(e); }
+    }
+
+    function searchTeam() {
+        const input = document.getElementById('search-input').value;
+        const val = normalizeText(input);
+        if (val.length < 1) return;
+
+        for (let id in markers) {
+            const teamName = normalizeText(markers[id].name);
+            if (id.includes(val) || teamName.includes(val)) {
+                map.flyTo(markers[id].m.getLatLng(), 14, { duration: 1.5 });
+                markers[id].m.openPopup();
+                break;
+            }
+        }
+    }
+
+    loadData();
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+</script>
+
+</body>
+</html>
